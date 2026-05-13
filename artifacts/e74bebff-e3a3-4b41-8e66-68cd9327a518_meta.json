@@ -1,0 +1,65 @@
+{
+  "model_id": "e74bebff-e3a3-4b41-8e66-68cd9327a518",
+  "use_case": "rul",
+  "hparams": {
+    "n_estimators": 500,
+    "max_depth": 5,
+    "learning_rate": 0.03,
+    "subsample": 0.8,
+    "colsample_bytree": 0.7,
+    "min_child_weight": 3,
+    "gamma": 0.0,
+    "reg_alpha": 0.1,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "rmse",
+    "early_stopping_rounds": 50
+  },
+  "metrics": {
+    "rmse": 0.5566040562446604,
+    "mae": 0.5065289735794067,
+    "r2": -0.26775693893432617,
+    "mape": 0.48247700929641724,
+    "cv_rmse_mean": 0.527654417719474,
+    "cv_rmse_std": 0.014549550666958748
+  },
+  "feature_importance": {
+    "tag_200_roll_mean": 0.12531,
+    "tag_100_pct_range": 0.118496,
+    "tag_200_roll_std": 0.117806,
+    "tag_100_roll_std": 0.105008,
+    "tag_100_raw": 0.100533,
+    "tag_200_pct_range": 0.096456,
+    "tag_200_raw": 0.090756,
+    "tag_100_roc_1": 0.085724,
+    "tag_100_roll_mean": 0.081234,
+    "tag_200_roc_1": 0.078677
+  },
+  "columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_100_pct_range",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std",
+    "tag_200_pct_range"
+  ],
+  "tags_used": [
+    "100",
+    "200"
+  ],
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  }
+}

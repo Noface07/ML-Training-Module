@@ -1,0 +1,58 @@
+{
+  "model_id": "fa2e371a-b14a-4f88-9db9-988ec1d93ca9",
+  "dataset_id": "708fb697-4ce1-4215-9685-f75cf848c234",
+  "dataset_path": "D:\\Anexee\\ML\\API SUITE\\ml_platform\\datasets\\708fb697-4ce1-4215-9685-f75cf848c234.parquet",
+  "use_case": "failure_prediction",
+  "model_type": "xgboost_clf",
+  "feature_columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_100_custom_feature_2",
+    "tag_100_custom_feature_1",
+    "tag_100_dist_to_max",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std",
+    "tag_200_my_special_metric",
+    "system_avg_pct"
+  ],
+  "target_col": "will_fail",
+  "tags": [
+    "100",
+    "200"
+  ],
+  "train_split": 0.8,
+  "cv_folds": 5,
+  "hparams_merged": {
+    "n_estimators": 400,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "scale_pos_weight": "auto",
+    "gamma": 0.1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "auc",
+    "early_stopping_rounds": 30
+  },
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  },
+  "log_path": "logs\\fa2e371a-b14a-4f88-9db9-988ec1d93ca9.log",
+  "artifact_dir": "artifacts",
+  "db_url": "sqlite:///./ml_platform.db"
+}

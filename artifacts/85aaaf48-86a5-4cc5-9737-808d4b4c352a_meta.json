@@ -1,0 +1,89 @@
+{
+  "model_id": "85aaaf48-86a5-4cc5-9737-808d4b4c352a",
+  "use_case": "failure_prediction",
+  "hparams": {
+    "n_estimators": 400,
+    "max_depth": 7,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "scale_pos_weight": "auto",
+    "gamma": 0.1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "auc",
+    "early_stopping_rounds": 30
+  },
+  "metrics": {
+    "accuracy": 0.45,
+    "f1": 0.47619047619047616,
+    "precision": 0.5263157894736842,
+    "recall": 0.43478260869565216,
+    "confusion_matrix": {
+      "TP": 10,
+      "TN": 8,
+      "FP": 9,
+      "FN": 13
+    },
+    "auc_roc": 0.48593350383631717,
+    "cv_auc_mean": 0.4628033088235294,
+    "cv_auc_std": 0.11029547180541253,
+    "class_distribution": {
+      "train": {
+        "pos": 0,
+        "neg": 0
+      },
+      "test": {
+        "pos": 23,
+        "neg": 17
+      }
+    }
+  },
+  "feature_importance": {
+    "tag_100_raw": 0.099736,
+    "tag_100_dist_to_max": 0.084689,
+    "tag_100_custom_feature_2": 0.084431,
+    "tag_100_roll_std": 0.083287,
+    "tag_100_roc_1": 0.082106,
+    "tag_200_raw": 0.080894,
+    "tag_100_roll_mean": 0.0793,
+    "system_avg_pct": 0.075123,
+    "tag_100_custom_feature_1": 0.074642,
+    "tag_200_roll_mean": 0.070805,
+    "tag_200_roll_std": 0.070128,
+    "tag_200_my_special_metric": 0.063417,
+    "tag_200_roc_1": 0.051442
+  },
+  "columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_100_custom_feature_1",
+    "tag_100_custom_feature_2",
+    "tag_100_dist_to_max",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std",
+    "tag_200_my_special_metric",
+    "system_avg_pct"
+  ],
+  "tags_used": [
+    "100",
+    "200"
+  ],
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  }
+}

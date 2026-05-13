@@ -1,0 +1,732 @@
+{
+  "info": {
+    "_postman_id": "77e59869-e655-41a4-bcf3-b5a491fc9c40",
+    "name": "ML Platform API Suite",
+    "description": "Production-grade Industrial ML Platform API Suite for predictive maintenance.\n\n## Workflow\n1. **Ingest** a parquet file → get `dataset_id`\n2. **Extract features** → get `feature_schema_id`\n3. **Check hparams** for your use case\n4. **Train** a model → get `model_id` + SSE stream URL\n5. **Browse/Download/Delete** models from the registry",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "45353471",
+    "_collection_link": "https://go.postman.co/collection/45353471-77e59869-e655-41a4-bcf3-b5a491fc9c40?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "Simple health check to verify the API is running."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "1 — Ingest",
+      "item": [
+        {
+          "name": "Ingest Parquet File",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('dataset_id', jsonData.dataset_id);",
+                  "    console.log('dataset_id saved:', jsonData.dataset_id);",
+                  "    ",
+                  "    pm.test('Ingest successful', function () {",
+                  "        pm.expect(jsonData.dataset_id).to.be.a('string');",
+                  "        pm.expect(jsonData.row_count).to.be.above(0);",
+                  "        pm.expect(jsonData.tags_detected).to.be.an('array');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Select a .parquet file to upload",
+                  "src": "/D:/Anexee/ML/API SUITE/ml_platform/datasets/custom.parquet"
+                },
+                {
+                  "key": "config",
+                  "value": "{\"timestamp_col\": \"timestamp\", \"timestamp_format\": \"auto\", \"forward_fill_limit\": 5, \"backward_fill_first_rows\": true, \"drop_duplicate_timestamps\": true}",
+                  "type": "text",
+                  "description": "Optional JSON config (all fields optional)"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/ingest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "ingest"
+              ]
+            },
+            "description": "Upload a parquet file for ingestion.\n\n**Steps performed:**\n1. Load & validate parquet\n2. Parse timestamps\n3. Clean (drop nulls, duplicates)\n4. Pivot to wide format if needed\n5. Forward/backward fill\n6. Compute per-tag range metadata\n7. Store cleaned parquet + DB record\n\n**Auto-saves** `dataset_id` to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Ingest (Minimal — no config)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('dataset_id', jsonData.dataset_id);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "description": "Select a .parquet file to upload",
+                  "src": [
+                    "",
+                    "/D:/Anexee/ML/API SUITE/ml_platform/datasets/ef218185-a7f0-4e1d-822a-ed1468304b5b.parquet"
+                  ]
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/ingest",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "ingest"
+              ]
+            },
+            "description": "Upload parquet with all default config values."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 — Features",
+      "item": [
+        {
+          "name": "Extract Features",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('feature_schema_id', jsonData.feature_schema_id);",
+                  "    console.log('feature_schema_id saved:', jsonData.feature_schema_id);",
+                  "    console.log('Tags found:', jsonData.tags);",
+                  "    console.log('Mandatory features:', jsonData.per_tag_features.mandatory);",
+                  "    console.log('Optional features:', jsonData.per_tag_features.optional);",
+                  "    ",
+                  "    pm.test('Features extracted', function () {",
+                  "        pm.expect(jsonData.tags).to.be.an('array').that.is.not.empty;",
+                  "        pm.expect(jsonData.per_tag_features.mandatory).to.include('raw');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/features/extract",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "features",
+                "extract"
+              ]
+            },
+            "description": "Extract and classify feature columns from a stored dataset.\n\n**Dynamic discovery** — discovers ALL `tag_{ID}_{suffix}` columns, not just a fixed set.\n\n- Mandatory: `raw`, `roll_mean`, `roll_std`, `roc_1`\n- Optional: everything else found in the data\n\n**Auto-saves** `feature_schema_id` to collection variables."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — failure_prediction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/failure_prediction",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "failure_prediction"
+              ]
+            },
+            "description": "Get default hyperparameters for failure_prediction (XGBoost classifier).\n\nReturns tier1, tier2, tier3 with value, type, min, max, and description."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — rul",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/rul",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "rul"
+              ]
+            },
+            "description": "Get default hyperparameters for RUL prediction (XGBoost regressor)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — anomaly_multivariate",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/anomaly_multivariate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "anomaly_multivariate"
+              ]
+            },
+            "description": "Get default hyperparameters for multivariate anomaly detection (Isolation Forest)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — risk_scoring",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/risk_scoring",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "risk_scoring"
+              ]
+            },
+            "description": "Get default hyperparameters for risk scoring. Note: different defaults from failure_prediction (min_child_weight=1, scale_pos_weight=1.0)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — kpi_prediction",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/kpi_prediction",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "kpi_prediction"
+              ]
+            },
+            "description": "Get default hyperparameters for KPI prediction (XGBoost regressor)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — next_interval",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/next_interval",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "next_interval"
+              ]
+            },
+            "description": "Get default hyperparameters for next-interval prediction (XGBoost regressor)."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Hparams — statistical (e.g. drift_detection)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/hparams/drift_detection",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "hparams",
+                "drift_detection"
+              ]
+            },
+            "description": "Get hparams for a statistical use case (no trainable hparams — returns empty tiers)."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 — Train",
+      "item": [
+        {
+          "name": "Train — Failure Prediction (XGBoost Clf)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('model_id', jsonData.model_id);",
+                  "    console.log('model_id saved:', jsonData.model_id);",
+                  "    console.log('Stream URL:', jsonData.stream_url);",
+                  "    ",
+                  "    pm.test('Training job spawned', function () {",
+                  "        pm.expect(jsonData.status).to.eql('training');",
+                  "        pm.expect(jsonData.stream_url).to.be.a('string');",
+                  "    });",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\",\n    \"feature_schema_id\": \"{{feature_schema_id}}\",\n    \"use_case\": \"failure_prediction\",\n    \"tags\": [\"100\", \"200\"],\n    \"optional_features\": [\"my_special_metric\", \"custom_feature_2\", \"custom_feature_1\", \"dist_to_max\"],\n    \"cross_tag_features\": [\"system_avg_pct\"],\n    \"include_cross_tag_features\": true,\n    \"target_col\": \"will_fail\",\n    \"train_split\": 0.8,\n    \"cv_folds\": 5,\n    \"hparams\": {\n        \"n_estimators\": 400,\n        \"max_depth\": 7,\n        \"learning_rate\": 0.05\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/train",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "train"
+              ]
+            },
+            "description": "Start a failure prediction training job.\n\n**Edit the `tags` array** to match tags found in your dataset (see Extract Features response).\n\n`hparams` are optional overrides — unspecified keys fall back to defaults.\n\n**Auto-saves** `model_id` to collection variables.\n\nReturns `202 Accepted` immediately."
+          },
+          "response": []
+        },
+        {
+          "name": "Train — RUL (XGBoost Reg)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('model_id', jsonData.model_id);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\",\n    \"feature_schema_id\": \"{{feature_schema_id}}\",\n    \"use_case\": \"rul\",\n    \"tags\": [\"100\", \"200\"],\n    \"optional_features\": [\"pct_range\"],\n    \"include_cross_tag_features\": false,\n    \"target_col\": \"will_fail\",\n    \"train_split\": 0.8,\n    \"cv_folds\": 5,\n    \"hparams\": {}\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/train",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "train"
+              ]
+            },
+            "description": "Start a Remaining Useful Life training job (XGBoost regressor)."
+          },
+          "response": []
+        },
+        {
+          "name": "Train — Anomaly Multivariate (Isolation Forest)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 202) {",
+                  "    var jsonData = pm.response.json();",
+                  "    pm.collectionVariables.set('model_id', jsonData.model_id);",
+                  "}"
+                ],
+                "type": "text/javascript",
+                "packages": {},
+                "requests": {}
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\",\n    \"feature_schema_id\": \"{{feature_schema_id}}\",\n    \"use_case\": \"anomaly_multivariate\",\n    \"tags\": [\"100\", \"200\"],\n    \"optional_features\": [],\n    \"include_cross_tag_features\": false,\n    \"target_col\": null,\n    \"train_split\": 0.8,\n    \"cv_folds\": 5,\n    \"hparams\": {\n        \"contamination\": 0.05\n    }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/train",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "train"
+              ]
+            },
+            "description": "Start an anomaly detection training job (Isolation Forest). No target_col needed."
+          },
+          "response": []
+        },
+        {
+          "name": "Stream Training Logs (SSE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Accept",
+                "value": "text/event-stream"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/v1/train/{{model_id}}/stream",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "train",
+                "{{model_id}}",
+                "stream"
+              ]
+            },
+            "description": "**Server-Sent Events stream** — tails the training log file in real-time.\n\nEmits:\n- `data:` — JSON log lines as they appear\n- `event: status` — when training completes/fails\n- `event: result` — final metrics + artifact path\n\n⚠️ Postman has limited SSE support. For full streaming, use `curl`:\n```\ncurl -N http://localhost:8000/v1/train/{model_id}/stream\n```"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 — Model Registry",
+      "item": [
+        {
+          "name": "List All Models",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models?limit=50&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Max results (1-500)"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "List all model artifacts. Returns `{total, items[]}`."
+          },
+          "response": []
+        },
+        {
+          "name": "List Models — Filter by use_case",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models?use_case=failure_prediction&limit=50&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models"
+              ],
+              "query": [
+                {
+                  "key": "use_case",
+                  "value": "failure_prediction"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Filter models by use_case."
+          },
+          "response": []
+        },
+        {
+          "name": "List Models — Filter by status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models?status=completed&limit=50&offset=0",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models"
+              ],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "description": "completed | failed | training"
+                },
+                {
+                  "key": "limit",
+                  "value": "50"
+                },
+                {
+                  "key": "offset",
+                  "value": "0"
+                }
+              ]
+            },
+            "description": "Filter models by training status."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Model Details",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models/{{model_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models",
+                "{{model_id}}"
+              ]
+            },
+            "description": "Get full model artifact record including metrics, feature importance, hparams, range metadata."
+          },
+          "response": []
+        },
+        {
+          "name": "Download Model (.pkl)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models/{{model_id}}/download",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models",
+                "{{model_id}}",
+                "download"
+              ]
+            },
+            "description": "Download the trained model as a `.pkl` file."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Model",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/models/{{model_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "models",
+                "{{model_id}}"
+              ]
+            },
+            "description": "Delete a model artifact and its files from disk.\n\n- Returns `404` if not found\n- Returns `409 Conflict` if model is still training"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "predict",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "[\r\n  {\r\n    \"tag_id\": 12446,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 620,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12447,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 618.438,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12448,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 220.017,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12449,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 224.228,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12450,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 220.757,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12451,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 222.356,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12452,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 411.132,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12453,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 411.075,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12454,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 410.363,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12455,\r\n    \"timestamp\": \"2026-01-01T12:00:00+00:00\",\r\n    \"numeric_value\": 414.84,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12446,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 645,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12447,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 619.439,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12448,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 219.15,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12449,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 221.336,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12450,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 223.315,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12451,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 223.184,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12452,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 409.879,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12453,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 410.392,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12454,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 411.011,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12455,\r\n    \"timestamp\": \"2026-01-01T12:00:02+00:00\",\r\n    \"numeric_value\": 413.282,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12446,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 670,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12447,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 617.963,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12448,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 220.767,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12449,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 224.711,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12450,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 222.835,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12451,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 221.223,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12452,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 408.919,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12453,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 412.111,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12454,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 410.375,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12455,\r\n    \"timestamp\": \"2026-01-01T12:00:04+00:00\",\r\n    \"numeric_value\": 413.039,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12446,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 695,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12447,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 619.544,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12448,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 218.588,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12449,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 222.138,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12450,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 220.855,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12451,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 224.235,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12452,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 411.455,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12453,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 412.37,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12454,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 410.601,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12455,\r\n    \"timestamp\": \"2026-01-01T12:00:06+00:00\",\r\n    \"numeric_value\": 412.463,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12446,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 710.5,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12447,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 618.642,\r\n    \"rangemin\": 550,\r\n    \"rangemax\": 700\r\n  },\r\n  {\r\n    \"tag_id\": 12448,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 219.683,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12449,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 223.264,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12450,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 220.544,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12451,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 223.571,\r\n    \"rangemin\": 180,\r\n    \"rangemax\": 260\r\n  },\r\n  {\r\n    \"tag_id\": 12452,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 408.377,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12453,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 411.228,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12454,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 411.727,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  },\r\n  {\r\n    \"tag_id\": 12455,\r\n    \"timestamp\": \"2026-01-01T12:00:08+00:00\",\r\n    \"numeric_value\": 411.788,\r\n    \"rangemin\": 360,\r\n    \"rangemax\": 470\r\n  }\r\n]",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://127.0.0.1:8000/predict",
+          "protocol": "http",
+          "host": [
+            "127",
+            "0",
+            "0",
+            "1"
+          ],
+          "port": "8000",
+          "path": [
+            "predict"
+          ]
+        }
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "dataset_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "feature_schema_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "model_id",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

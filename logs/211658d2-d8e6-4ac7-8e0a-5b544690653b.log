@@ -1,0 +1,11 @@
+{"ts": "2026-05-12T10:11:51.559115Z", "level": "INFO", "msg": "Training started", "data": {"use_case": "failure_prediction"}}
+{"ts": "2026-05-12T10:11:51.868582Z", "level": "INFO", "msg": "Dataset loaded", "data": {"train_rows": 160, "test_rows": 40, "cols": 13}}
+{"ts": "2026-05-12T10:11:52.232998Z", "level": "INFO", "msg": "CV fold 1/5", "data": {"auc": 0.4275}}
+{"ts": "2026-05-12T10:11:52.424844Z", "level": "INFO", "msg": "CV fold 2/5", "data": {"auc": 0.418}}
+{"ts": "2026-05-12T10:11:52.571817Z", "level": "INFO", "msg": "CV fold 3/5", "data": {"auc": 0.332}}
+{"ts": "2026-05-12T10:11:52.736941Z", "level": "INFO", "msg": "CV fold 4/5", "data": {"auc": 0.5352}}
+{"ts": "2026-05-12T10:11:52.899437Z", "level": "INFO", "msg": "CV fold 5/5", "data": {"auc": 0.6289}}
+{"ts": "2026-05-12T10:11:53.011617Z", "level": "INFO", "msg": "Model training complete", "data": {}}
+{"ts": "2026-05-12T10:11:53.023243Z", "level": "INFO", "msg": "Evaluation complete", "data": {"metrics": {"accuracy": 0.5, "f1": 0.5238095238095238, "precision": 0.5789473684210527, "recall": 0.4782608695652174, "confusion_matrix": {"TP": 11, "TN": 9, "FP": 8, "FN": 12}, "auc_roc": 0.4936061381074168, "cv_auc_mean": 0.46830269607843145, "cv_auc_std": 0.10299046074547658, "class_distribution": {"train": {"pos": 0, "neg": 0}, "test": {"pos": 23, "neg": 17}}}}}
+{"ts": "2026-05-12T10:11:53.030263Z", "level": "INFO", "msg": "Artifact saved", "data": {"path": "artifacts\\211658d2-d8e6-4ac7-8e0a-5b544690653b.pkl"}}
+{"ts": "2026-05-12T10:11:53.031269Z", "level": "INFO", "msg": "Training complete", "data": {"duration_seconds": 1.47}}
