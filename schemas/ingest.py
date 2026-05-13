@@ -56,3 +56,14 @@ class IngestResponse(BaseModel):
         description="Per-tag min/max from raw columns."
     )
     created_at: datetime
+
+
+class DatasetPreviewResponse(BaseModel):
+    """Response returned when previewing a dataset's rows and schema."""
+
+    dataset_id: str = Field(description="UUID of the dataset.")
+    original_filename: str = Field(description="Original filename uploaded.")
+    row_count: int = Field(description="Total rows in the dataset.")
+    col_count: int = Field(description="Total columns in the dataset.")
+    columns: list[str] = Field(description="List of column names.")
+    rows: list[dict[str, Any]] = Field(description="Preview rows as dictionary records.")

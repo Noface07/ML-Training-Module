@@ -37,3 +37,23 @@ def test_ingest_invalid_parquet(client):
         files={"file": ("bad.parquet", b"not a parquet file", "application/octet-stream")},
     )
     assert resp.status_code == 400
+
+
+def test_preview_dataset(client, sample_parquet_bytes):
+    """Previewing an ingested dataset returns column list and dictionary rows."""
+    # 1. Ingest
+    resp = client.post(
+        "/v1/ingest",
+        files={"file": ("test.parquet", sample_parquet_bytes, "application/octet-stream")},
+    )
+    assert resp.status_code == 200
+    dataset_id = resp.json()["dataset_id"]
+
+    # 2. Preview
+    resp2 = client.get(f"/v1/dataset/{dataset_id}/preview?limit=5")
+    assert resp2.status_code == 200
+    data = resp2.json()
+    assert data["dataset_id"] == dataset_id
+    assert data["row_count"] == 200
+    assert len(data["rows"]) == 5
+    assert len(data["columns"]) > 0

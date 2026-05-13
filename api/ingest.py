@@ -6,14 +6,16 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from typing import Optional
+import pandas as pd
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models.dataset import DatasetRecord
-from schemas.ingest import IngestConfig, IngestResponse
+from schemas.ingest import DatasetPreviewResponse, IngestConfig, IngestResponse
 from services.ingest_service import ingest_file
 from utils.errors import ErrorCode, raise_error
 
@@ -71,3 +73,36 @@ async def ingest(
     logger.info("Ingested dataset %s (%d rows, %d cols)", result["dataset_id"], result["row_count"], result["col_count"])
 
     return IngestResponse(**result)
+
+
+@router.get("/dataset/{dataset_id}/preview", response_model=DatasetPreviewResponse, status_code=200)
+async def preview_dataset(
+    dataset_id: str,
+    limit: int = Query(100, ge=1, le=1000, description="Max rows to return for preview"),
+    db: Session = Depends(get_db),
+) -> DatasetPreviewResponse:
+    """Preview the schema and first N rows of an ingested dataset."""
+    record = db.query(DatasetRecord).filter(DatasetRecord.id == dataset_id).first()
+    if not record:
+        raise_error(ErrorCode.DATASET_NOT_FOUND, f"Dataset {dataset_id} not found.", status_code=404)
+
+    if not os.path.exists(record.stored_path):
+        raise_error(ErrorCode.INTERNAL_ERROR, f"Stored file for dataset {dataset_id} is missing on disk.", status_code=500)
+
+    try:
+        df = pd.read_parquet(record.stored_path)
+        preview_df = df.head(limit)
+        # Convert NaN/NaT to None for valid JSON serialization
+        preview_df = preview_df.replace({pd.NA: None, float("nan"): None})
+        rows = json.loads(preview_df.to_json(orient="records", date_format="iso"))
+    except Exception as exc:
+        raise_error(ErrorCode.INTERNAL_ERROR, f"Failed to read dataset parquet file: {exc}", status_code=500)
+
+    return DatasetPreviewResponse(
+        dataset_id=record.id,
+        original_filename=record.original_filename,
+        row_count=record.row_count,
+        col_count=record.col_count,
+        columns=list(df.columns),
+        rows=rows,
+    )

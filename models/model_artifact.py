@@ -21,6 +21,7 @@ class ModelArtifact(Base):
     use_case: str = Column(String, nullable=False)
     model_type: str = Column(String, nullable=False)
     version: int = Column(Integer, nullable=False)
+    model_name: str | None = Column(String, nullable=True)
     artifact_path: str = Column(String, nullable=True)
     metadata_path: str = Column(String, nullable=True)
     dataset_id: str = Column(
@@ -33,6 +34,7 @@ class ModelArtifact(Base):
     feature_importance = Column(JSON, nullable=True)
     range_metadata = Column(JSON, nullable=True)
     tags_used = Column(JSON, nullable=True)
+    mandatory_features_used = Column(JSON, nullable=True)
     optional_features_used = Column(JSON, nullable=True)
     cross_tag_features_used = Column(JSON, nullable=True)
     training_duration_seconds: float = Column(Float, nullable=True)

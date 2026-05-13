@@ -15,6 +15,7 @@ class ModelArtifactResponse(BaseModel):
     use_case: str
     model_type: str
     version: int
+    model_name: str | None = None
     artifact_path: str | None = None
     metadata_path: str | None = None
     dataset_id: str

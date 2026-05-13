@@ -300,13 +300,20 @@ class BaseTrainer(ABC):
             importance = self.get_feature_importance(model, feature_names)
 
             # ── Save model ─────────────────────────────────────────────
-            artifact_path = os.path.join(self.artifact_dir, f"{self.model_id}.pkl")
+            base_filename = self.model_id
+            if self.job_config.get("model_name"):
+                clean_name = "".join(c for c in self.job_config["model_name"] if c not in r'/\:*?"<>|')
+                if clean_name.strip():
+                    base_filename = clean_name.strip()
+
+            artifact_path = os.path.join(self.artifact_dir, f"{base_filename}.pkl")
             os.makedirs(self.artifact_dir, exist_ok=True)
             joblib.dump(model, artifact_path)
 
-            meta_path = os.path.join(self.artifact_dir, f"{self.model_id}_meta.json")
+            meta_path = os.path.join(self.artifact_dir, f"{base_filename}_meta.json")
             meta = {
                 "model_id": self.model_id,
+                "model_name": self.job_config.get("model_name"),
                 "use_case": self.job_config.get("use_case"),
                 "hparams": self.job_config.get("hparams_merged", {}),
                 "metrics": metrics,
@@ -323,9 +330,20 @@ class BaseTrainer(ABC):
 
             duration = time.time() - start
 
+            result_payload = {
+                "model_id": self.model_id,
+                "model_name": self.job_config.get("model_name"),
+                "status": "completed",
+                "use_case": self.job_config.get("use_case", ""),
+                "output_tag": self.job_config.get("output_tag", ""),
+                "metrics": metrics,
+                "feature_importance": importance,
+                "training_duration_seconds": round(duration, 2),
+                "artifact_path": artifact_path,
+            }
             result_path = os.path.join("logs", f"{self.model_id}_result.json")
             with open(result_path, "w") as f:
-                json.dump({"status": "completed", "metrics": metrics, "duration": duration}, f, default=str)
+                json.dump(result_payload, f, default=str)
 
             self.log("INFO", "Training complete", {"duration_seconds": round(duration, 2)})
 
@@ -347,9 +365,19 @@ class BaseTrainer(ABC):
             tb = traceback.format_exc()
             self.log("ERROR", f"Training failed: {exc}", {"traceback": tb})
 
+            result_payload = {
+                "model_id": self.model_id,
+                "model_name": self.job_config.get("model_name"),
+                "status": "failed",
+                "use_case": self.job_config.get("use_case", ""),
+                "output_tag": self.job_config.get("output_tag", ""),
+                "error": str(exc),
+                "training_duration_seconds": round(duration, 2),
+                "artifact_path": "",
+            }
             result_path = os.path.join("logs", f"{self.model_id}_result.json")
             with open(result_path, "w") as f:
-                json.dump({"status": "failed", "error": str(exc), "duration": duration}, f, default=str)
+                json.dump(result_payload, f, default=str)
 
             self._update_db({
                 "status": "failed",

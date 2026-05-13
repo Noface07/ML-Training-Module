@@ -60,8 +60,9 @@ def download_model(model_id: str, db: Session = Depends(get_db)):
     record = get_model(db, model_id)
     if not record.artifact_path or not Path(record.artifact_path).exists():
         raise_error(ErrorCode.ARTIFACT_FILE_MISSING, "Model artifact file not found on disk.", status_code=404)
+    filename = f"{record.model_name}.pkl" if record.model_name else f"{model_id}.pkl"
     return FileResponse(
         path=record.artifact_path,
-        filename=f"{model_id}.pkl",
+        filename=filename,
         media_type="application/octet-stream",
     )

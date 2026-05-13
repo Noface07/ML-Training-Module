@@ -1,0 +1,68 @@
+{
+  "model_id": "54a17416-505f-40b2-92e5-c24224414245",
+  "model_name": "Explorer Premium Model",
+  "dataset_id": "c2c784ad-53f8-4843-bea7-05a6dbfb050b",
+  "dataset_path": "D:\\Anexee\\ML\\API SUITE\\ml_platform\\datasets\\c2c784ad-53f8-4843-bea7-05a6dbfb050b.parquet",
+  "use_case": "failure_prediction",
+  "output_tag": "risk_score",
+  "model_type": "xgboost_clf",
+  "feature_columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std"
+  ],
+  "mandatory_columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std"
+  ],
+  "optional_feature_groups": {},
+  "cross_tag_columns": [],
+  "feature_selection": true,
+  "target_col": "will_fail",
+  "tags": [
+    "100",
+    "200"
+  ],
+  "train_split": 0.8,
+  "cv_folds": 5,
+  "hparams_merged": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "scale_pos_weight": "auto",
+    "gamma": 0.1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "auc",
+    "early_stopping_rounds": 30
+  },
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  },
+  "log_path": "logs\\54a17416-505f-40b2-92e5-c24224414245.log",
+  "artifact_dir": "artifacts",
+  "db_url": "sqlite:///./test_ml_platform.db"
+}

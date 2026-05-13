@@ -74,12 +74,27 @@ def start_training(
     if missing_tags:
         raise_error(ErrorCode.TAGS_NOT_IN_DATASET, f"Tags not found in dataset: {missing_tags}", detail=missing_tags)
 
-    # 5. Validate optional features — dynamically discovered
-    # Read the schema to find valid suffixes
+    # 5. Parse dataset schema for dynamic feature discovery
     import pyarrow.parquet as pq
     schema = pq.read_schema(dataset.stored_path)
     col_names = schema.names
     fs = parse_columns(col_names)
+    all_known_suffixes = set(fs.per_tag_features_mandatory) | set(fs.per_tag_features_optional)
+
+    # 5a. Resolve mandatory features: user-provided or auto-detected
+    if body.mandatory_features:
+        invalid_man = [f for f in body.mandatory_features if f not in all_known_suffixes]
+        if invalid_man:
+            raise_error(
+                ErrorCode.INVALID_OPTIONAL_FEATURE,
+                f"Invalid mandatory features: {invalid_man}. Valid: {sorted(all_known_suffixes)}",
+                detail=invalid_man,
+            )
+        resolved_mandatory = sorted(body.mandatory_features)
+    else:
+        resolved_mandatory = fs.per_tag_features_mandatory
+
+    # 5b. Validate optional features
     valid_optional = set(fs.per_tag_features_optional)
     invalid = [f for f in body.optional_features if f not in valid_optional]
     if invalid:
@@ -89,7 +104,7 @@ def start_training(
             detail=invalid,
         )
 
-    # 5b. Validate selective cross-tag features
+    # 5c. Validate selective cross-tag features
     valid_cross_tag = set(fs.cross_tag_present)
     invalid_ct = [f for f in body.cross_tag_features if f not in valid_cross_tag]
     if invalid_ct:
@@ -113,7 +128,7 @@ def start_training(
     # 7. Resolve column list
     feature_columns = build_column_list(
         tags=body.tags,
-        mandatory_suffixes=fs.per_tag_features_mandatory,
+        mandatory_suffixes=resolved_mandatory,
         optional_suffixes=body.optional_features,
         include_cross_tag=body.include_cross_tag_features,
         cross_tag_present=fs.cross_tag_present,
@@ -131,12 +146,14 @@ def start_training(
         use_case=body.use_case,
         model_type=uc_info["model_type"],
         version=version,
+        model_name=body.model_name,
         dataset_id=body.dataset_id,
         feature_schema_id=body.feature_schema_id,
         feature_schema_snapshot={"feature_columns": feature_columns, "target_col": body.target_col},
         hparams_used=hparams_merged,
         range_metadata=dataset.range_metadata,
         tags_used=body.tags,
+        mandatory_features_used=resolved_mandatory,
         optional_features_used=body.optional_features,
         cross_tag_features_used=resolved_cross_tag,
         status="training",
@@ -151,7 +168,7 @@ def start_training(
     # Build mandatory / optional groups for feature selection
     mandatory_columns = build_mandatory_columns(
         tags=body.tags,
-        mandatory_suffixes=fs.per_tag_features_mandatory,
+        mandatory_suffixes=resolved_mandatory,
         tag_column_map=fs.tag_column_map,
     )
     optional_feature_groups = build_optional_groups(
@@ -162,9 +179,11 @@ def start_training(
 
     job_config = {
         "model_id": model_id,
+        "model_name": body.model_name,
         "dataset_id": body.dataset_id,
         "dataset_path": dataset.stored_path,
         "use_case": body.use_case,
+        "output_tag": uc_info["output_tag"],
         "model_type": uc_info["model_type"],
         "feature_columns": feature_columns,
         "mandatory_columns": mandatory_columns,
@@ -203,6 +222,7 @@ def start_training(
 
     return TrainResponse(
         model_id=model_id,
+        model_name=body.model_name,
         job_id=model_id,
         status="training",
         stream_url=f"/v1/train/{model_id}/stream",

@@ -95,3 +95,20 @@ def test_train_invalid_cross_tag(client, sample_parquet_bytes):
         "target_col": "will_fail",
     })
     assert resp.status_code == 422
+
+
+def test_train_model_name(client, sample_parquet_bytes):
+    """POST /v1/train supports a custom model_name."""
+    dataset_id, schema_id = _setup_dataset(client, sample_parquet_bytes)
+
+    resp = client.post("/v1/train", json={
+        "dataset_id": dataset_id,
+        "feature_schema_id": schema_id,
+        "use_case": "failure_prediction",
+        "model_name": "My Premium Failure Model v1",
+        "tags": ["100", "200"],
+        "target_col": "will_fail",
+    })
+    assert resp.status_code == 202
+    data = resp.json()
+    assert data["model_name"] == "My Premium Failure Model v1"
