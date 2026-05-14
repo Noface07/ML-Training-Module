@@ -17,6 +17,7 @@ from database import get_db
 from models.dataset import DatasetRecord
 from schemas.ingest import DatasetPreviewResponse, IngestConfig, IngestResponse
 from services.ingest_service import ingest_file
+from services.profile_service import resolve_or_create_profile
 from utils.errors import ErrorCode, raise_error
 
 logger = logging.getLogger(__name__)
@@ -72,7 +73,33 @@ async def ingest(
 
     logger.info("Ingested dataset %s (%d rows, %d cols)", result["dataset_id"], result["row_count"], result["col_count"])
 
-    return IngestResponse(**result)
+    # Resolve or create a Tag Profile from the detected tags
+    profile_id = None
+    profile_name = None
+    tag_hash = None
+    raw_tags: list[str] = result.get("tags_detected", [])
+    if raw_tags:
+        try:
+            tag_ids = [int(t) for t in raw_tags]
+            profile, _ = resolve_or_create_profile(db, tag_ids)
+            profile_id = profile.id
+            profile_name = profile.profile_name
+            tag_hash = profile.tag_hash
+            logger.info(
+                "Resolved TagProfile %d (%s) for dataset %s",
+                profile.id,
+                profile.profile_name,
+                result["dataset_id"],
+            )
+        except Exception as exc:
+            logger.warning("Could not resolve tag profile for dataset %s: %s", result["dataset_id"], exc)
+
+    return IngestResponse(
+        **result,
+        profile_id=profile_id,
+        profile_name=profile_name,
+        tag_hash=tag_hash,
+    )
 
 
 @router.get("/dataset/{dataset_id}/preview", response_model=DatasetPreviewResponse, status_code=200)

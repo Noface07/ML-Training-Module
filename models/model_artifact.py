@@ -27,6 +27,9 @@ class ModelArtifact(Base):
     dataset_id: str = Column(
         String, ForeignKey("dataset_records.id"), nullable=False
     )
+    profile_id: int | None = Column(
+        Integer, ForeignKey("tag_profiles.id", ondelete="SET NULL"), nullable=True
+    )
     feature_schema_id: str = Column(String, nullable=True)
     feature_schema_snapshot = Column(JSON, nullable=True)
     hparams_used = Column(JSON, nullable=True)

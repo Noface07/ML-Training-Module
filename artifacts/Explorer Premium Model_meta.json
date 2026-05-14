@@ -1,0 +1,75 @@
+{
+  "model_id": "89a0f9f3-ee08-411f-9280-77e9adcb4518",
+  "model_name": "Explorer Premium Model",
+  "use_case": "failure_prediction",
+  "hparams": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "scale_pos_weight": "auto",
+    "gamma": 0.1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "auc",
+    "early_stopping_rounds": 30
+  },
+  "metrics": {
+    "accuracy": 0.575,
+    "f1": 0.6666666666666666,
+    "precision": 0.7391304347826086,
+    "recall": 0.6071428571428571,
+    "confusion_matrix": {
+      "TP": 17,
+      "TN": 6,
+      "FP": 6,
+      "FN": 11
+    },
+    "auc_roc": 0.3869047619047619,
+    "cv_auc_mean": 0.4312978524743231,
+    "cv_auc_std": 0.026370541944647604,
+    "class_distribution": {
+      "test_pos": 28,
+      "test_neg": 12
+    }
+  },
+  "feature_importance": {
+    "tag_100_raw": 0.137363,
+    "tag_100_roll_std": 0.135221,
+    "tag_200_raw": 0.12618,
+    "tag_100_roc_1": 0.122805,
+    "tag_200_roc_1": 0.122749,
+    "tag_200_roll_std": 0.121706,
+    "tag_200_roll_mean": 0.118315,
+    "tag_100_roll_mean": 0.115661
+  },
+  "columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std"
+  ],
+  "tags_used": [
+    "100",
+    "200"
+  ],
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  },
+  "feature_selection_used": false
+}

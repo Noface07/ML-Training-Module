@@ -37,6 +37,7 @@ class ErrorCode(str, Enum):
     INTERNAL_ERROR = "INTERNAL_ERROR"
     SCHEMA_NOT_FOUND = "SCHEMA_NOT_FOUND"
     JOB_NOT_FOUND = "JOB_NOT_FOUND"
+    PROFILE_NOT_FOUND = "PROFILE_NOT_FOUND"
 
 
 class MLPlatformError(HTTPException):

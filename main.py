@@ -15,7 +15,7 @@ from fastapi.responses import JSONResponse
 
 from config import settings
 from database import init_db
-from api import ingest, features, train, registry
+from api import ingest, features, train, registry, profiles
 from utils.errors import MLPlatformError
 
 # ── Logging setup ─────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ app.include_router(ingest.router,    prefix="/v1", tags=["Ingest"])
 app.include_router(features.router,  prefix="/v1", tags=["Features"])
 app.include_router(train.router,     prefix="/v1", tags=["Train"])
 app.include_router(registry.router,  prefix="/v1", tags=["Registry"])
+app.include_router(profiles.router,  prefix="/v1", tags=["Profiles"])
 
 
 @app.get("/health")

@@ -55,6 +55,9 @@ class IngestResponse(BaseModel):
     range_metadata: dict[str, dict[str, float]] = Field(
         description="Per-tag min/max from raw columns."
     )
+    profile_id: int | None = Field(default=None, description="ID of the resolved Tag Profile.")
+    profile_name: str | None = Field(default=None, description="Name of the resolved Tag Profile.")
+    tag_hash: str | None = Field(default=None, description="Deterministic hash of the detected tags.")
     created_at: datetime
 
 

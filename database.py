@@ -35,7 +35,7 @@ def init_db() -> None:
     via ``PRAGMA table_info`` and issues ``ALTER TABLE … ADD COLUMN`` for
     any columns defined in the ORM model but absent from the DB.
     """
-    from models import dataset, model_artifact  # noqa: F401 — ensure models are registered
+    from models import dataset, model_artifact, tag_profile  # noqa: F401 — ensure models are registered
 
     # 1. Create any brand-new tables
     Base.metadata.create_all(bind=engine)

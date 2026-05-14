@@ -28,6 +28,7 @@ from schemas.train import TrainRequest, TrainResponse
 from services.artifact_service import next_version
 from services.feature_service import get_cached_schema
 from services.hparam_service import merge_hparams
+from services.profile_service import get_profile_by_tag_hash, resolve_or_create_profile
 from utils.column_parser import (
     MANDATORY_SUFFIXES, build_column_list, build_mandatory_columns,
     build_optional_groups, parse_columns,
@@ -137,9 +138,22 @@ def start_training(
         selected_cross_tag_features=body.cross_tag_features,
     )
 
-    # 8. Create model artifact record
+    # 8. Generate model ID
     model_id = str(uuid.uuid4())
     version = next_version(db, body.use_case)
+
+    # 9. Resolve Tag Profile from training tags
+    profile_id = None
+    if body.tags:
+        try:
+            tag_ids = [int(t) for t in body.tags]
+            profile, _ = resolve_or_create_profile(db, tag_ids)
+            profile_id = profile.id
+            logger.info("Linked model %s to TagProfile %d (%s)", model_id, profile.id, profile.profile_name)
+        except Exception as exc:
+            logger.warning("Could not resolve tag profile for training job %s: %s", model_id, exc)
+
+    # 10. Create model artifact record
 
     artifact = ModelArtifact(
         id=model_id,
@@ -148,6 +162,7 @@ def start_training(
         version=version,
         model_name=body.model_name,
         dataset_id=body.dataset_id,
+        profile_id=profile_id,
         feature_schema_id=body.feature_schema_id,
         feature_schema_snapshot={"feature_columns": feature_columns, "target_col": body.target_col},
         hparams_used=hparams_merged,

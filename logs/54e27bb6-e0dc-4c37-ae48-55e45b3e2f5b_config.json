@@ -1,0 +1,78 @@
+{
+  "model_id": "54e27bb6-e0dc-4c37-ae48-55e45b3e2f5b",
+  "model_name": null,
+  "dataset_id": "88e12562-0e2e-478b-9c75-920de81be714",
+  "dataset_path": "D:\\Anexee\\ML\\API SUITE\\ml_platform\\datasets\\88e12562-0e2e-478b-9c75-920de81be714.parquet",
+  "use_case": "failure_prediction",
+  "output_tag": "risk_score",
+  "model_type": "xgboost_clf",
+  "feature_columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_100_pct_range",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std",
+    "tag_200_pct_range",
+    "factory_temp"
+  ],
+  "mandatory_columns": [
+    "tag_100_raw",
+    "tag_100_roc_1",
+    "tag_100_roll_mean",
+    "tag_100_roll_std",
+    "tag_200_raw",
+    "tag_200_roc_1",
+    "tag_200_roll_mean",
+    "tag_200_roll_std"
+  ],
+  "optional_feature_groups": {
+    "pct_range": [
+      "tag_100_pct_range",
+      "tag_200_pct_range"
+    ]
+  },
+  "cross_tag_columns": [
+    "factory_temp"
+  ],
+  "feature_selection": true,
+  "target_col": "will_fail",
+  "tags": [
+    "100",
+    "200"
+  ],
+  "train_split": 0.8,
+  "cv_folds": 5,
+  "hparams_merged": {
+    "n_estimators": 300,
+    "max_depth": 6,
+    "learning_rate": 0.05,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "min_child_weight": 5,
+    "scale_pos_weight": "auto",
+    "gamma": 0.1,
+    "reg_alpha": 0.0,
+    "reg_lambda": 1.0,
+    "n_jobs": -1,
+    "random_state": 42,
+    "eval_metric": "auc",
+    "early_stopping_rounds": 30
+  },
+  "range_metadata": {
+    "100": {
+      "min": 36.47305469836044,
+      "max": 54.48061111698756
+    },
+    "200": {
+      "min": 29.356481769619858,
+      "max": 56.40821700211575
+    }
+  },
+  "log_path": "logs\\54e27bb6-e0dc-4c37-ae48-55e45b3e2f5b.log",
+  "artifact_dir": "artifacts",
+  "db_url": "sqlite:///./test_ml_platform.db"
+}
