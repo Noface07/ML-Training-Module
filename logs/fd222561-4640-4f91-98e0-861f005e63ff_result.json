@@ -1,1 +1,0 @@
-{"status": "failed", "error": "\"['tag_100_my_special_metric', 'tag_200_custom_feature_1', 'tag_200_custom_feature_2', 'tag_200_dist_to_max'] not in index\"", "duration": 0.08637189865112305}

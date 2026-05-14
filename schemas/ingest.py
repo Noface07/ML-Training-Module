@@ -58,6 +58,8 @@ class IngestResponse(BaseModel):
     profile_id: int | None = Field(default=None, description="ID of the resolved Tag Profile.")
     profile_name: str | None = Field(default=None, description="Name of the resolved Tag Profile.")
     tag_hash: str | None = Field(default=None, description="Deterministic hash of the detected tags.")
+    file_hash: str | None = Field(default=None, description="SHA-256 hash of the ingested parquet file.")
+    is_duplicate: bool = Field(default=False, description="True if the file was previously ingested and processing was skipped.")
     created_at: datetime
 
 

@@ -4,6 +4,7 @@ POST /v1/ingest — Parquet file upload, validation, cleaning, storage.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -45,6 +46,42 @@ async def ingest(
     if not file_bytes:
         raise_error(ErrorCode.INVALID_FILE_FORMAT, "Uploaded file is empty.", status_code=400)
 
+    # Hash the file for deduplication
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # Check if this exact file was already ingested
+    existing_record = db.query(DatasetRecord).filter(DatasetRecord.file_hash == file_hash).first()
+    if existing_record:
+        logger.info("File deduplication hit for hash %s -> returning existing dataset_id %s", file_hash, existing_record.id)
+        
+        # Resolve the profile to return in response
+        profile_id, profile_name, tag_hash = None, None, None
+        raw_tags: list[str] = existing_record.tags_detected or []
+        if raw_tags:
+            try:
+                tag_ids = [int(t) for t in raw_tags]
+                profile, _ = resolve_or_create_profile(db, tag_ids)
+                profile_id = profile.id
+                profile_name = profile.profile_name
+                tag_hash = profile.tag_hash
+            except Exception as exc:
+                logger.warning("Could not resolve tag profile for existing dataset %s: %s", existing_record.id, exc)
+                
+        return IngestResponse(
+            dataset_id=existing_record.id,
+            row_count=existing_record.row_count,
+            col_count=existing_record.col_count,
+            tags_detected=existing_record.tags_detected or [],
+            quality_report=existing_record.quality_report or {},
+            range_metadata=existing_record.range_metadata or {},
+            profile_id=profile_id,
+            profile_name=profile_name,
+            tag_hash=tag_hash,
+            file_hash=file_hash,
+            is_duplicate=True,
+            created_at=existing_record.created_at,
+        )
+
     # Run ingest pipeline
     result = ingest_file(
         file_bytes=file_bytes,
@@ -67,6 +104,7 @@ async def ingest(
         quality_report=result["quality_report"],
         range_metadata=result["range_metadata"],
         created_at=result["created_at"],
+        file_hash=file_hash,
     )
     db.add(record)
     db.commit()
@@ -99,6 +137,8 @@ async def ingest(
         profile_id=profile_id,
         profile_name=profile_name,
         tag_hash=tag_hash,
+        file_hash=file_hash,
+        is_duplicate=False,
     )
 
 

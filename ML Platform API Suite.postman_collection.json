@@ -1,11 +1,11 @@
 {
   "info": {
-    "_postman_id": "77e59869-e655-41a4-bcf3-b5a491fc9c40",
+    "_postman_id": "da7e1b11-b497-4e77-8fc3-73bbe086c54d",
     "name": "ML Platform API Suite",
     "description": "Production-grade Industrial ML Platform API Suite for predictive maintenance.\n\n## Workflow\n1. **Ingest** a parquet file → get `dataset_id`\n2. **Extract features** → get `feature_schema_id`\n3. **Check hparams** for your use case\n4. **Train** a model → get `model_id` + SSE stream URL\n5. **Browse/Download/Delete** models from the registry",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     "_exporter_id": "45353471",
-    "_collection_link": "https://go.postman.co/collection/45353471-77e59869-e655-41a4-bcf3-b5a491fc9c40?source=collection_link"
+    "_collection_link": "https://go.postman.co/collection/45353471-da7e1b11-b497-4e77-8fc3-73bbe086c54d?source=collection_link"
   },
   "item": [
     {
@@ -56,6 +56,8 @@
                   "        pm.expect(jsonData.profile_id).to.be.a('number');",
                   "        pm.expect(jsonData.profile_name).to.be.a('string');",
                   "        pm.expect(jsonData.tag_hash).to.have.lengthOf(64);",
+                  "        pm.expect(jsonData.file_hash).to.have.lengthOf(64);",
+                  "        pm.expect(jsonData.is_duplicate).to.be.a('boolean');",
                   "    });",
                   "}"
                 ],
@@ -75,7 +77,7 @@
                   "key": "file",
                   "type": "file",
                   "description": "Select a .parquet file to upload",
-                  "src": "/D:/Anexee/ML/API SUITE/ml_platform/datasets/custom.parquet"
+                  "src": "/D:/Anexee/ML/API SUITE/ml_platform/datasets/1a240144-28a8-4439-bc68-4991f61877b2.parquet"
                 },
                 {
                   "key": "config",
@@ -152,7 +154,27 @@
           "name": "Preview Parquet File",
           "request": {
             "method": "GET",
-            "header": []
+            "header": [],
+            "url": {
+              "raw": "http://localhost:8000/v1/dataset/{{dataset_id}}/preview?limit=10",
+              "protocol": "http",
+              "host": [
+                "localhost"
+              ],
+              "port": "8000",
+              "path": [
+                "v1",
+                "dataset",
+                "{{dataset_id}}",
+                "preview"
+              ],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "10"
+                }
+              ]
+            }
           },
           "response": []
         }
@@ -393,7 +415,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\",\n    \"feature_schema_id\": \"{{feature_schema_id}}\",\n    \"use_case\": \"failure_prediction\",\n    \"tags\": [\"100\", \"200\"],\n    \"mandatory_features\": [\"raw\", \"roc_1\", \"roll_mean\", \"roll_std\"],\n    \"optional_features\": [\"my_special_metric\", \"custom_feature_2\", \"custom_feature_1\", \"dist_to_max\"],\n    \"cross_tag_features\": [\"system_avg_pct\"],\n    \"include_cross_tag_features\": true,\n    \"target_col\": \"will_fail\",\n    \"train_split\": 0.8,\n    \"cv_folds\": 5,\n    \"hparams\": {\n        \"n_estimators\": 400,\n        \"max_depth\": 7,\n        \"learning_rate\": 0.05\n    }\n}"
+              "raw": "{\n    \"dataset_id\": \"{{dataset_id}}\",\n    \"feature_schema_id\": \"{{feature_schema_id}}\",\n    \"model_name\": \"CAR1\",\n    \"use_case\": \"failure_prediction\",\n    \"tags\": [\"100\", \"200\"],\n    \"mandatory_features\": [\"raw\", \"roc_1\", \"roll_mean\", \"roll_std\"],\n    \"optional_features\": [\"pct_range_OPT\"],\n    \"cross_tag_features\": [],\n    \"include_cross_tag_features\": true,\n    \"target_col\": \"will_fail\",\n    \"train_split\": 0.8,\n    \"cv_folds\": 5,\n    \"hparams\": {\n        \"n_estimators\": 400,\n        \"max_depth\": 7,\n        \"learning_rate\": 0.05\n    }\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/train",
@@ -690,7 +712,7 @@
       ]
     },
     {
-      "name": "5 \u2014 Profiles",
+      "name": "5 — Profiles",
       "item": [
         {
           "name": "List All Profiles",
@@ -699,8 +721,13 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/v1/profiles",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "profiles"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "profiles"
+              ]
             },
             "description": "List all deterministic Tag Profiles annotated with their model counts.\n\nEach profile groups datasets and models that share the same integer tag collection. Auto-resolved on every ingest."
           },
@@ -713,8 +740,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/v1/profiles/{{profile_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "profiles", "{{profile_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profile_id}}"
+              ]
             },
             "description": "Retrieve full details of a specific Tag Profile.\n\nReturns `profile_name`, `tag_hash`, `created_at`, and `updated_at`."
           },
@@ -725,16 +758,25 @@
           "request": {
             "method": "PATCH",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"profile_name\": \"My Production Profile\"\n}"
+              "raw": "{\n    \"profile_name\": \"CAR\"\n}"
             },
             "url": {
               "raw": "{{base_url}}/v1/profiles/{{profile_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "profiles", "{{profile_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profile_id}}"
+              ]
             },
             "description": "Update the human-readable name of a Tag Profile.\n\nThe `tag_hash` is immutable — only the display name changes."
           },
@@ -747,8 +789,15 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/v1/profiles/{{profile_id}}/models",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "profiles", "{{profile_id}}", "models"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profile_id}}",
+                "models"
+              ]
             },
             "description": "List all trained model artifacts linked to a specific Tag Profile.\n\nUse this to browse all model versions trained on the same tag collection."
           },
@@ -761,8 +810,14 @@
             "header": [],
             "url": {
               "raw": "{{base_url}}/v1/profiles/{{profile_id}}",
-              "host": ["{{base_url}}"],
-              "path": ["v1", "profiles", "{{profile_id}}"]
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "v1",
+                "profiles",
+                "{{profile_id}}"
+              ]
             },
             "description": "Delete a Tag Profile and cascade-delete all associated model artifacts and their files.\n\n⚠️ This is irreversible. Models still training will be skipped with a warning."
           },

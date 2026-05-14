@@ -18,6 +18,7 @@ class DatasetRecord(Base):
     __tablename__ = "dataset_records"
 
     id: str = Column(String, primary_key=True)
+    file_hash: str = Column(String, unique=True, index=True, nullable=True)
     original_filename: str = Column(String, nullable=False)
     stored_path: str = Column(String, nullable=False)
     row_count: int = Column(Integer, nullable=False)

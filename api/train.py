@@ -12,6 +12,7 @@ import os
 import subprocess
 import sys
 import uuid
+from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator
 
@@ -177,8 +178,10 @@ def start_training(
     db.commit()
 
     # 9. Write job config
-    os.makedirs(settings.LOGS_DIR, exist_ok=True)
-    config_path = os.path.join(settings.LOGS_DIR, f"{model_id}_config.json")
+    date_str = datetime.utcnow().strftime("%Y-%m-%d")
+    log_dir = os.path.join(settings.LOGS_DIR, date_str)
+    os.makedirs(log_dir, exist_ok=True)
+    config_path = os.path.join(log_dir, f"{model_id}_config.json")
 
     # Build mandatory / optional groups for feature selection
     mandatory_columns = build_mandatory_columns(
@@ -211,7 +214,7 @@ def start_training(
         "cv_folds": body.cv_folds,
         "hparams_merged": hparams_merged,
         "range_metadata": dataset.range_metadata,
-        "log_path": os.path.join(settings.LOGS_DIR, f"{model_id}.log"),
+        "log_path": os.path.join(log_dir, f"{model_id}.log"),
         "artifact_dir": settings.ARTIFACTS_DIR,
         "db_url": settings.DB_URL,
     }
@@ -253,8 +256,10 @@ async def stream_logs(job_id: str, db: Session = Depends(get_db)):
     if not record:
         raise_error(ErrorCode.JOB_NOT_FOUND, f"No training job found with id: {job_id}", status_code=404)
 
-    log_path = os.path.join(settings.LOGS_DIR, f"{job_id}.log")
-    result_path = os.path.join(settings.LOGS_DIR, f"{job_id}_result.json")
+    date_str = record.created_at.strftime("%Y-%m-%d")
+    log_dir = os.path.join(settings.LOGS_DIR, date_str)
+    log_path = os.path.join(log_dir, f"{job_id}.log")
+    result_path = os.path.join(log_dir, f"{job_id}_result.json")
 
     async def event_generator() -> AsyncGenerator[dict, None]:
         last_pos = 0
