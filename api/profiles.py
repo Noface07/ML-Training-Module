@@ -27,7 +27,7 @@ from services.profile_service import (
     list_profiles,
     update_profile_name,
 )
-from services.artifact_service import list_models
+
 from utils.errors import ErrorCode, raise_error
 
 router = APIRouter()
@@ -98,4 +98,4 @@ def get_profile_models_endpoint(profile_id: int, db: Session = Depends(get_db)):
         .order_by(ModelArtifact.created_at.desc())
         .all()
     )
-    return ModelListResponse(total=len(models), items=models)
+    return {"total": len(models), "items": models}
