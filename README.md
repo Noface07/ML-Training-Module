@@ -1,6 +1,6 @@
-# ML Platform API — Step-by-Step Usage Guide 
+# ML Platform API — Step-by-Step Usage Guide
 
-The workflow is always: **Ingest → Extract Features → (Check Hparams) → Train → Monitor/Browse**
+The workflow is always: **Ingest → (Preview Dataset) → Extract Features → (Check Hparams) → Train → Monitor → Browse/Manage → (Profiles)**
 
 ---
 
@@ -41,12 +41,52 @@ Content-Type: multipart/form-data
     "tags_detected": ["12446", "12447", "12448"],
     "quality_report": { ... },
     "range_metadata": { "12446": {"min": 0.12, "max": 148.7}, ... },
+    "profile_id": 1,                                         ← auto-resolved Tag Profile
+    "profile_name": "profile_a3f92c11",                     ← auto-named (renameable)
+    "tag_hash": "a3f92c11d4e7...",                          ← deterministic 64-char hash
+    "file_hash": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "is_duplicate": false,                                   ← true if file was previously ingested
     "created_at": "2026-05-12T09:30:00Z"
 }
 ```
 
 > [!IMPORTANT]
 > Copy the `dataset_id` from the response — you need it for every subsequent call.
+> The `profile_id` is automatically resolved from your tag collection — datasets with the same tags always map to the same profile.
+> **Deduplication:** If you upload the exact same file twice, the system skips processing and returns `is_duplicate: true` with the original `dataset_id`.
+
+---
+
+## Step 1b — Preview Dataset (Optional)
+
+Inspect the first N rows and column schema of any ingested dataset — useful for remote Flutter/mobile clients.
+
+```
+GET http://localhost:8000/v1/dataset/{dataset_id}/preview
+GET http://localhost:8000/v1/dataset/{dataset_id}/preview?limit=50
+```
+
+| Query Param | Type | Default | Description |
+|---|---|---|---|
+| `limit` | int | `100` | Max rows to return (1 – 1000) |
+
+**Response (200):**
+```json
+{
+    "dataset_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "original_filename": "sensor_data.parquet",
+    "row_count": 10420,
+    "col_count": 134,
+    "columns": ["timestamp", "tag_100_raw", "tag_100_roll_mean", "will_fail", ...],
+    "rows": [
+        { "timestamp": "2026-01-01T00:00:00", "tag_100_raw": 51.23, "will_fail": 0, ... },
+        { "timestamp": "2026-01-01T00:01:00", "tag_100_raw": 51.87, "will_fail": 0, ... }
+    ]
+}
+```
+
+> [!TIP]
+> Use `?limit=5` for a fast schema inspection without transferring large payloads.
 
 ---
 
@@ -139,11 +179,13 @@ Content-Type: application/json
 
 ### Rules for building the payload:
 1. **`tags`** — only use tag IDs from Step 2's `tags` array
-2. **`optional_features`** — only use suffixes from Step 2's `per_tag_features.optional` array
-3. **`cross_tag_features`** — selectively specify cross-tag features from Step 2's `cross_tag_features.available` array
-4. **`target_col`** — required for `xgboost_clf` and `xgboost_reg` use cases; use the value from Step 2
-5. **`hparams`** — only include keys you want to override; everything else uses defaults
-6. **Not every tag has every optional feature** — the system handles this automatically (skips missing combinations)
+2. **`mandatory_features`** — optional override; defaults to auto-detected mandatory set (`raw`, `roc_1`, `roll_mean`, `roll_std`)
+3. **`optional_features`** — only use suffixes from Step 2's `per_tag_features.optional` array
+4. **`cross_tag_features`** — selectively specify cross-tag features from Step 2's `cross_tag_features.available` array
+5. **`target_col`** — required for `xgboost_clf` and `xgboost_reg` use cases; use the value from Step 2
+6. **`model_name`** — optional human-readable name for the saved `.pkl` file (e.g. `"My Sensor Model v2"`)
+7. **`hparams`** — only include keys you want to override; everything else uses defaults
+8. **Not every tag has every optional feature** — the system handles this automatically (skips missing combinations)
 
 ---
 
@@ -151,10 +193,12 @@ Content-Type: application/json
 
 ```json
 {
+    "model_name": "Failure Model v1",
     "dataset_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
     "feature_schema_id": "a1b2c3d4-e5f6-...",
     "use_case": "failure_prediction",
     "tags": ["100", "200"],
+    "mandatory_features": ["raw", "roc_1", "roll_mean", "roll_std"],
     "optional_features": ["pct_range", "dist_to_max", "custom_feature_1"],
     "cross_tag_features": ["system_avg_pct"],
     "include_cross_tag_features": true,
@@ -223,7 +267,7 @@ Content-Type: application/json
 }
 ```
 
-Everything else (`optional_features`, `include_cross_tag_features`, `train_split`, `cv_folds`, `hparams`) defaults automatically.
+Everything else (`model_name`, `optional_features`, `include_cross_tag_features`, `train_split`, `cv_folds`, `hparams`) defaults automatically.
 
 ---
 
@@ -231,6 +275,7 @@ Everything else (`optional_features`, `include_cross_tag_features`, `train_split
 ```json
 {
     "model_id": "e8f9a0b1-...",       ← SAVE THIS
+    "model_name": "Failure Model v1",
     "job_id": "e8f9a0b1-...",
     "status": "training",
     "stream_url": "/v1/train/e8f9a0b1-.../stream",
@@ -238,6 +283,9 @@ Everything else (`optional_features`, `include_cross_tag_features`, `train_split
     "output_tag": "risk_score"
 }
 ```
+
+> [!TIP]
+> The model is automatically linked to the Tag Profile resolved during ingest. Use `GET /v1/profiles/{profile_id}/models` to browse all versions trained on the same tag set.
 
 ---
 
@@ -277,6 +325,7 @@ GET http://localhost:8000/v1/models/{model_id}
 ```
 GET http://localhost:8000/v1/models/{model_id}/download
 ```
+Returns the `.pkl` file with the custom `model_name` as the suggested filename.
 
 ### Delete a model
 ```
@@ -288,14 +337,73 @@ DELETE http://localhost:8000/v1/models/{model_id}
 
 ---
 
+## Step 7 — Tag Profile Management
+
+Every ingest auto-resolves a **Tag Profile** — a named group that maps a deterministic hash of integer tag IDs to datasets and models. Datasets ingested with the same tag collection always land in the same profile.
+
+### List all profiles
+```
+GET http://localhost:8000/v1/profiles
+```
+
+**Response:**
+```json
+{
+    "items": [
+        {
+            "id": 1,
+            "profile_name": "profile_a3f92c11",
+            "tag_hash": "a3f92c11d4e7...",
+            "created_at": "...",
+            "updated_at": "...",
+            "model_count": 3
+        }
+    ]
+}
+```
+
+### Get profile details
+```
+GET http://localhost:8000/v1/profiles/{profile_id}
+```
+
+### Rename a profile
+```
+PATCH http://localhost:8000/v1/profiles/{profile_id}
+Content-Type: application/json
+```
+```json
+{
+    "profile_name": "Engine Sensors Group A"
+}
+```
+
+### List all models under a profile
+```
+GET http://localhost:8000/v1/profiles/{profile_id}/models
+```
+Returns all model artifacts ever trained on datasets belonging to this profile.
+
+### Delete a profile
+```
+DELETE http://localhost:8000/v1/profiles/{profile_id}
+```
+
+> [!CAUTION]
+> Deleting a profile cascades to delete all associated model artifacts and their physical files. This is irreversible.
+
+---
+
 ## Quick Reference — Field Descriptions
 
 | Field | Type | Default | Notes |
 |---|---|---|---|
 | `dataset_id` | string | — | From Step 1 response |
 | `feature_schema_id` | string | — | From Step 2 response |
+| `model_name` | string | `null` | Optional friendly name for `.pkl` file |
 | `use_case` | string | — | See table in Step 3 |
 | `tags` | string[] | — | Tag IDs from Step 2 `tags` array |
+| `mandatory_features` | string[] | auto-detected | Override default mandatory feature set |
 | `optional_features` | string[] | `[]` | Suffixes from Step 2 `optional` array |
 | `cross_tag_features` | string[] | `[]` | Selectively include specific cross-tag features |
 | `include_cross_tag_features` | bool | `false` | Fallback flag to include all available cross-tag features |
@@ -303,3 +411,26 @@ DELETE http://localhost:8000/v1/models/{model_id}
 | `train_split` | float | `0.8` | Train/test ratio (0.1 – 0.99) |
 | `cv_folds` | int | `5` | Cross-validation folds (2 – 20) |
 | `hparams` | object | `{}` | Only override what you need |
+
+---
+
+## Quick Reference — All Endpoints
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/v1/ingest` | Upload & ingest a Parquet file |
+| `GET` | `/v1/dataset/{dataset_id}/preview` | Preview dataset rows and schema |
+| `POST` | `/v1/features/extract` | Discover tags and feature schema |
+| `GET` | `/v1/hparams/{use_case}` | Get default hyperparameters |
+| `POST` | `/v1/train` | Spawn a training job |
+| `GET` | `/v1/train/{model_id}/stream` | SSE stream training logs |
+| `GET` | `/v1/models` | List model artifacts (filterable) |
+| `GET` | `/v1/models/{model_id}` | Get model details |
+| `GET` | `/v1/models/{model_id}/download` | Download `.pkl` file |
+| `DELETE` | `/v1/models/{model_id}` | Delete model + files |
+| `GET` | `/v1/profiles` | List all Tag Profiles |
+| `GET` | `/v1/profiles/{profile_id}` | Get profile details |
+| `PATCH` | `/v1/profiles/{profile_id}` | Rename a profile |
+| `GET` | `/v1/profiles/{profile_id}/models` | Models under a profile |
+| `DELETE` | `/v1/profiles/{profile_id}` | Delete profile + all its models |
+| `GET` | `/health` | Health check |
