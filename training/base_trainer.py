@@ -25,8 +25,8 @@ from typing import Any
 import joblib
 import numpy as np
 import pandas as pd
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+# from sqlalchemy import create_engine
+# from sqlalchemy.orm import sessionmaker
 
 logger = logging.getLogger(__name__)
 
@@ -246,17 +246,28 @@ class BaseTrainer(ABC):
     # ── DB update helper ───────────────────────────────────────────────
     def _update_db(self, updates: dict[str, Any]) -> None:
         """Update the model_artifact row in the database."""
-        engine = create_engine(self.db_url, connect_args={"check_same_thread": False})
-        Session = sessionmaker(bind=engine)
-        session = Session()
+
+        # Ensure all models are registered
+        import models  # noqa: F401
+
+        from database import SessionLocal
+        from models.model_artifact import ModelArtifact
+
+        session = SessionLocal()
+
         try:
-            from models.dataset import DatasetRecord  # noqa: F401
-            from models.model_artifact import ModelArtifact
-            record = session.query(ModelArtifact).filter(ModelArtifact.id == self.model_id).first()
+            record = (
+                session.query(ModelArtifact)
+                .filter(ModelArtifact.id == self.model_id)
+                .first()
+            )
+
             if record:
                 for k, v in updates.items():
                     setattr(record, k, v)
+
                 session.commit()
+
         finally:
             session.close()
 
