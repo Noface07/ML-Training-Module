@@ -47,6 +47,10 @@ class IsolationForestTrainer(BaseTrainer):
         }
 
     def primary_metric(self) -> tuple[str, bool]:
+        # NOTE: This metric ("score_std") is strictly used internally by BaseTrainer 
+        # for greedy forward feature selection (higher variance = better separation). 
+        # It does NOT conflict with `imp_metrics.py`, which independently uses `p50_p5_gap`
+        # for the final global leaderboard ranking of the artifact.
         return ("score_std", True)  # higher variance = better separation
 
     # ── Standard trainer interface ─────────────────────────────────────
@@ -64,16 +68,51 @@ class IsolationForestTrainer(BaseTrainer):
         model = IsolationForest(**self._get_if_hparams())
         model.fit(X_train)
         self.log("INFO", "Isolation Forest fitted", {"n_samples": len(X_train)})
+
+        # Store train scores for drift computation in evaluate()
+        train_scores = model.decision_function(X_train)
+        self._train_score_mean = float(np.mean(train_scores))
+        self._train_samples = len(X_train)
+
         return model
 
     def evaluate(self, model, X_test: pd.DataFrame, y_test: Any) -> dict:
+        """Compute IF metrics on test set, plus robustness metrics (train/test drift)."""
         scores = model.decision_function(X_test)
         labels = model.predict(X_test)
         contamination = self.job_config.get("hparams_merged", {}).get("contamination", 0.05)
-        return isolation_forest_metrics(scores, labels, contamination)
+        metrics = isolation_forest_metrics(scores, labels, contamination)
+
+        # ── Test score distribution snapshot ──────────────────────────
+        test_score_mean = float(np.mean(scores))
+        metrics["test_metrics"] = {
+            "score_mean": round(test_score_mean, 6),
+            "score_std": round(float(np.std(scores)), 6),
+            "anomaly_pct": metrics.get("anomaly_pct"),
+        }
+
+        # ── Robustness metrics (train vs test drift) ──────────────────
+        train_score_mean = getattr(self, "_train_score_mean", None)
+        drift: float | None = None
+        if train_score_mean is not None:
+            drift = round(abs(train_score_mean - test_score_mean), 6)
+
+        metrics["robustness_metrics"] = {
+            "train_score_mean": round(train_score_mean, 6) if train_score_mean is not None else None,
+            "test_score_mean": round(test_score_mean, 6),
+            "train_test_score_drift": drift,
+        }
+
+        # ── Dataset stats ─────────────────────────────────────────────
+        metrics["dataset_stats"] = {
+            "train_samples": getattr(self, "_train_samples", None),
+            "test_samples": len(X_test),
+        }
+
+        return metrics
 
     def get_feature_importance(self, model, feature_names: list[str]) -> dict[str, float]:
-        return {name: 0.0 for name in feature_names}
+        return {}
 
 
 if __name__ == "__main__":

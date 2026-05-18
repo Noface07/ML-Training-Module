@@ -90,29 +90,24 @@ class BaseTrainer(ABC):
         """Return (metric_name, higher_is_better)."""
 
     # ── Feature selection ──────────────────────────────────────────────
-    def _run_feature_selection(
-        self,
-        df: pd.DataFrame,
-        y: pd.Series | None,
-    ) -> list[str]:
-        """Try combinations of optional feature groups and pick the best.
+    def _run_feature_selection(self, df: pd.DataFrame, y: Any) -> list[str]:
+        """Run feature selection using optional feature groups."""
+        import itertools
+        import time
 
-        Always keeps all mandatory columns.  Varies which optional suffix
-        groups are included.  Evaluates each combination via k-fold CV.
-
-        Returns:
-            The best column list to use for final training.
-        """
-        mandatory_cols: list[str] = self.job_config.get("mandatory_columns", [])
-        groups: dict[str, list[str]] = self.job_config.get("optional_feature_groups", {})
-        cross_tag_cols: list[str] = self.job_config.get("cross_tag_columns", [])
-        cv_folds: int = self.job_config.get("cv_folds", 5)
+        groups = self.job_config.get("optional_feature_groups", {})
+        # Use strict mandatory_columns as the base — NOT feature_columns.
+        # feature_columns already contains optional group columns (pre-resolved by the API),
+        # which would cause duplicates when optional group columns are appended per combo.
+        mandatory_cols = self.job_config.get("mandatory_columns", self.job_config.get("feature_columns", []))
+        cross_tag_cols = self.job_config.get("cross_tag_columns", self.job_config.get("_cross_tag_features_auto", []))
 
         base_cols = mandatory_cols + cross_tag_cols
         suffixes = sorted(groups.keys())
         n = len(suffixes)
 
         metric_name, higher_is_better = self.primary_metric()
+        cv_folds = self.job_config.get("cv_folds", 5)
 
         self.log("INFO", "Feature selection started", {
             "mandatory_features": len(mandatory_cols),
@@ -122,34 +117,16 @@ class BaseTrainer(ABC):
             "metric": metric_name,
         })
 
-        # ── Generate combinations ──────────────────────────────────────
-        if n <= _EXHAUSTIVE_LIMIT:
-            # Exhaustive: all 2^N subsets including empty
-            all_combos: list[tuple[str, ...]] = [()]
-            for r in range(1, n + 1):
-                all_combos.extend(itertools.combinations(suffixes, r))
-            self.log("INFO", f"Exhaustive search: {len(all_combos)} combinations")
-        else:
-            # Greedy forward selection
-            all_combos = self._greedy_forward_combos(suffixes)
-            self.log("INFO", f"Greedy forward selection: {len(all_combos)} steps")
-
-        # ── Evaluate each combination ──────────────────────────────────
         results: list[dict[str, Any]] = []
 
-        for combo_idx, combo in enumerate(all_combos):
+        def _evaluate_combo(combo: tuple[str, ...], combo_idx: int, total: int) -> dict[str, Any]:
             combo_label = list(combo) if combo else ["mandatory_only"]
-
-            # Build column set for this combination
             combo_cols = list(base_cols)
             for suffix in combo:
                 combo_cols.extend(groups[suffix])
-
-            # Filter to columns that actually exist in df
             available = [c for c in combo_cols if c in df.columns]
             X_sub = df[available]
 
-            # K-fold CV
             from sklearn.model_selection import KFold, StratifiedKFold
             if y is not None and self._is_classifier():
                 kf = StratifiedKFold(n_splits=cv_folds, shuffle=False)
@@ -159,7 +136,6 @@ class BaseTrainer(ABC):
                 split_iter = kf.split(X_sub)
 
             fold_metrics: list[dict[str, float]] = []
-
             for fold_idx, (train_idx, val_idx) in enumerate(split_iter):
                 Xf = X_sub.iloc[train_idx]
                 Xv = X_sub.iloc[val_idx]
@@ -170,23 +146,21 @@ class BaseTrainer(ABC):
                 scores = self.quick_score(model, Xv, yv)
                 fold_metrics.append(scores)
 
-                self.log("INFO", f"FeatureSelection combo {combo_idx+1}/{len(all_combos)} fold {fold_idx+1}/{cv_folds}", {
+                self.log("INFO", f"FeatureSelection combo {combo_idx+1}/{total} fold {fold_idx+1}/{cv_folds}", {
                     "combo": combo_label,
                     "n_features": len(available),
                     **{k: round(v, 6) for k, v in scores.items()},
                 })
 
-            # Compute mean of primary metric
             mean_val = float(np.mean([m[metric_name] for m in fold_metrics]))
             std_val = float(np.std([m[metric_name] for m in fold_metrics]))
 
-            # Compute means for all metrics
             all_metric_means = {}
             for key in fold_metrics[0]:
                 all_metric_means[f"mean_{key}"] = round(float(np.mean([m[key] for m in fold_metrics])), 6)
                 all_metric_means[f"std_{key}"] = round(float(np.std([m[key] for m in fold_metrics])), 6)
 
-            self.log("INFO", f"FeatureSelection combo {combo_idx+1}/{len(all_combos)} summary", {
+            self.log("INFO", f"FeatureSelection combo {combo_idx+1}/{total} summary", {
                 "combo": combo_label,
                 "n_features": len(available),
                 f"mean_{metric_name}": round(mean_val, 6),
@@ -194,20 +168,79 @@ class BaseTrainer(ABC):
                 **all_metric_means,
             })
 
-            results.append({
+            return {
                 "combo": combo,
                 "combo_label": combo_label,
                 "columns": available,
                 "mean_primary": mean_val,
                 "std_primary": std_val,
                 "all_means": all_metric_means,
-            })
+            }
+
+        if n <= _EXHAUSTIVE_LIMIT:
+            # Exhaustive search
+            all_combos: list[tuple[str, ...]] = [()]
+            for r in range(1, n + 1):
+                all_combos.extend(itertools.combinations(suffixes, r))
+            self.log("INFO", f"Exhaustive search: {len(all_combos)} combinations")
+            
+            for idx, combo in enumerate(all_combos):
+                results.append(_evaluate_combo(combo, idx, len(all_combos)))
+        else:
+            # True iterative greedy forward selection
+            self.log("INFO", "Starting greedy forward selection")
+            current_best_combo: tuple[str, ...] = ()
+            
+            # Evaluate baseline
+            baseline_res = _evaluate_combo((), 0, 1)
+            results.append(baseline_res)
+            current_best_metric = baseline_res["mean_primary"]
+            
+            remaining_suffixes = set(suffixes)
+            step_count = 0
+            
+            while remaining_suffixes:
+                step_count += 1
+                self.log("INFO", f"Greedy forward step {step_count}", {"remaining": list(remaining_suffixes)})
+                
+                step_candidates = []
+                for suffix in remaining_suffixes:
+                    candidate_combo = tuple(sorted(list(current_best_combo) + [suffix]))
+                    step_candidates.append((suffix, candidate_combo))
+                
+                step_results = []
+                for idx, (suffix, candidate) in enumerate(step_candidates):
+                    res = _evaluate_combo(candidate, idx, len(step_candidates))
+                    step_results.append((suffix, res))
+                    results.append(res)
+                
+                # Find best in this step
+                if higher_is_better:
+                    best_step = max(step_results, key=lambda x: x[1]["mean_primary"])
+                    improved = best_step[1]["mean_primary"] > current_best_metric
+                else:
+                    best_step = min(step_results, key=lambda x: x[1]["mean_primary"])
+                    improved = best_step[1]["mean_primary"] < current_best_metric
+                
+                if improved:
+                    current_best_combo = best_step[1]["combo"]
+                    current_best_metric = best_step[1]["mean_primary"]
+                    remaining_suffixes.remove(best_step[0])
+                    self.log("INFO", f"Greedy step {step_count} improved metric", {
+                        "new_combo": current_best_combo,
+                        "new_metric": current_best_metric
+                    })
+                else:
+                    self.log("INFO", f"Greedy step {step_count} yielded no improvement. Stopping.")
+                    break
 
         # ── Pick the best ──────────────────────────────────────────────
         if higher_is_better:
             best = max(results, key=lambda r: r["mean_primary"])
         else:
             best = min(results, key=lambda r: r["mean_primary"])
+
+        self.job_config["_best_optional_suffixes"] = best["combo_label"]
 
         # Rank all combinations
         ranked = sorted(results, key=lambda r: r["mean_primary"], reverse=higher_is_better)
@@ -231,12 +264,7 @@ class BaseTrainer(ABC):
 
         return best["columns"]
 
-    def _greedy_forward_combos(self, suffixes: list[str]) -> list[tuple[str, ...]]:
-        """Generate greedy forward-selection combos for large N."""
-        combos: list[tuple[str, ...]] = [()]  # baseline
-        for suffix in suffixes:
-            combos.append((suffix,))  # each individual
-        return combos
+
 
     def _is_classifier(self) -> bool:
         """Check if this is a classification use case."""
@@ -352,7 +380,7 @@ class BaseTrainer(ABC):
                 "training_duration_seconds": round(duration, 2),
                 "artifact_path": artifact_path,
             }
-            result_path = os.path.join("logs", f"{self.model_id}_result.json")
+            result_path = os.path.join(os.path.dirname(self.log_path), f"{self.model_id}_result.json")
             with open(result_path, "w") as f:
                 json.dump(result_payload, f, default=str)
 
@@ -367,7 +395,7 @@ class BaseTrainer(ABC):
                 "training_duration_seconds": round(duration, 2),
                 "completed_at": datetime.utcnow(),
                 "optional_features_used": list(
-                    self.job_config.get("_best_optional_suffixes", self.job_config.get("optional_feature_groups", {}).keys())
+                    self.job_config.get("_best_optional_suffixes", self.job_config.get("optional_feature_groups", {}).keys() if do_fs else [])
                 ),
             })
 
@@ -386,7 +414,7 @@ class BaseTrainer(ABC):
                 "training_duration_seconds": round(duration, 2),
                 "artifact_path": "",
             }
-            result_path = os.path.join("logs", f"{self.model_id}_result.json")
+            result_path = os.path.join(os.path.dirname(self.log_path), f"{self.model_id}_result.json")
             with open(result_path, "w") as f:
                 json.dump(result_payload, f, default=str)
 

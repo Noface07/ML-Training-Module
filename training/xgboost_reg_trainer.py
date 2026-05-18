@@ -12,6 +12,7 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import f1_score, mean_absolute_error, r2_score
 from sklearn.model_selection import KFold
 from xgboost import XGBRegressor
 
@@ -66,10 +67,15 @@ class XGBoostRegTrainer(BaseTrainer):
         if cv_folds > 1:
             kf = KFold(n_splits=cv_folds, shuffle=False)
             cv_scores = []
+            best_iterations = []
             for fold_idx, (train_idx, val_idx) in enumerate(kf.split(X_train)):
                 Xf, Xv = X_train.iloc[train_idx], X_train.iloc[val_idx]
                 yf, yv = y_train.iloc[train_idx], y_train.iloc[val_idx]
                 model.fit(Xf, yf, eval_set=[(Xv, yv)], verbose=False)
+                
+                if hasattr(model, "best_iteration") and model.best_iteration:
+                    best_iterations.append(model.best_iteration)
+                    
                 pred = model.predict(Xv)
                 fold_m = regression_metrics(yv.values, pred)
                 cv_scores.append(fold_m["rmse"])
@@ -77,17 +83,81 @@ class XGBoostRegTrainer(BaseTrainer):
                     k: round(float(v), 6) if v is not None else None for k, v in fold_m.items()
                 })
             self.job_config["_cv_scores"] = cv_scores
+            
+            avg_best = int(np.mean(best_iterations)) if best_iterations else hparams.get("n_estimators", 100)
+            model = XGBRegressor(**{**hparams, "n_estimators": avg_best}, eval_metric="rmse")
 
         model.fit(X_train, y_train, verbose=False)
+
+        # Store training data reference for train-set evaluation in evaluate()
+        self._X_train = X_train
+        self._y_train = y_train
+        self._train_samples = len(X_train)
+
         return model
 
     def evaluate(self, model, X_test: pd.DataFrame, y_test: pd.Series) -> dict:
+        """Compute regression metrics on test set, plus train metrics for overfitting gap."""
         y_pred = model.predict(X_test)
         metrics = regression_metrics(y_test.values, y_pred)
+
+        # ── CV statistics ─────────────────────────────────────────────
         cv_scores = self.job_config.get("_cv_scores", [])
         if cv_scores:
             metrics["cv_rmse_mean"] = float(np.mean(cv_scores))
             metrics["cv_rmse_std"] = float(np.std(cv_scores))
+
+        # ── Dataset stats ─────────────────────────────────────────────
+        metrics["dataset_stats"] = {
+            "train_samples": getattr(self, "_train_samples", None),
+            "test_samples": len(X_test),
+            "target_unique_values": len(np.unique(self._y_train)) if hasattr(self, "_y_train") else None,
+        }
+
+        # ── Test metrics snapshot (explicit) ──────────────────────────
+        metrics["test_metrics"] = {
+            "r2": metrics.get("r2"),
+            "rmse": metrics.get("rmse"),
+            "mae": metrics.get("mae"),
+        }
+
+        # ── Train metrics (for overfitting gap) ───────────────────────
+        X_tr = getattr(self, "_X_train", None)
+        y_tr = getattr(self, "_y_train", None)
+        train_metrics: dict[str, float | None] = {"r2": None, "rmse": None, "mae": None}
+        if X_tr is not None and y_tr is not None:
+            try:
+                tr_pred = model.predict(X_tr)
+                tr_m = regression_metrics(y_tr.values, tr_pred)
+                train_metrics = {
+                    "r2":   round(float(tr_m["r2"]),  6) if tr_m.get("r2")  is not None else None,
+                    "rmse": round(float(tr_m["rmse"]), 6) if tr_m.get("rmse") is not None else None,
+                    "mae":  round(float(tr_m["mae"]),  6) if tr_m.get("mae")  is not None else None,
+                }
+            except Exception:
+                pass
+        metrics["train_metrics"] = train_metrics
+        
+        # ── Generalization metrics ────────────────────────────────────
+        test_r2 = metrics["test_metrics"].get("r2")
+        train_r2 = train_metrics.get("r2")
+        
+        gen_metrics = {
+            "overfit_gap_r2": None,
+            "is_overfit": False,
+            "is_underfit": False,
+            "has_generalization_failure": False,
+        }
+        
+        if test_r2 is not None and train_r2 is not None:
+            gap = round(float(train_r2 - test_r2), 6)
+            gen_metrics["overfit_gap_r2"] = gap
+            gen_metrics["is_overfit"] = gap > 0.2
+            gen_metrics["is_underfit"] = test_r2 < 0.0
+            gen_metrics["has_generalization_failure"] = gap > 0.5
+            
+        metrics["generalization_metrics"] = gen_metrics
+
         return metrics
 
     def get_feature_importance(self, model, feature_names: list[str]) -> dict[str, float]:

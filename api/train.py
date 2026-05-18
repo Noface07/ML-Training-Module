@@ -69,6 +69,9 @@ def start_training(
         col_names = schema.names
         if body.target_col not in col_names:
             raise_error(ErrorCode.MISSING_TARGET_COL, f"Target column '{body.target_col}' not in dataset.", field="target_col")
+    elif uc_info["model_type"] in ("isolation_forest", "one_class_svm", "autoencoder", "lof"):
+        # For unsupervised anomaly models, target column is not used
+        body.target_col = None
 
     # 4. Validate tags exist
     ds_tags_set = set(dataset.tags_detected or [])
